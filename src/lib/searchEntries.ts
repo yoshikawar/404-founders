@@ -1,3 +1,5 @@
+import type { Route } from 'next'
+
 import { GUIDE_SECTIONS } from '@/constants/guides'
 import { findDetailByTitle } from '@/constants/details'
 import { type SearchResult } from '@/types/search'
@@ -26,13 +28,13 @@ const searchEntries: SearchEntry[] = GUIDE_SECTIONS.flatMap((section) => {
   })
 
   section.items.forEach((item, index) => {
-    const detailHref = (() => {
+    const detailHref: Route = (() => {
       if (!section.detailCategory) {
         return section.route
       }
       const detail = findDetailByTitle(section.detailCategory, item.k)
       if (detail) {
-        return `/detail/${section.detailCategory}/${detail.id}`
+        return `/detail/${section.detailCategory}/${detail.id}` as Route
       }
       return section.route
     })()

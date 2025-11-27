@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { type ReactNode } from "react";
 
 import { type ErrorCategory } from "@/types/details";
@@ -10,7 +11,7 @@ export type GuideRow = {
 
 export type GuideSection = {
   id: string;
-  route: string;
+  route: Route;
   icon: ReactNode;
   title: string;
   items: GuideRow[];

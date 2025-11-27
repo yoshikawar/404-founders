@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
-import { DetailPage } from '@/pages/DetailPage'
+import { DetailPage } from '@/views/DetailPage'
 import { findDetailBySlug } from '@/constants/details'
 import { isErrorCategory } from '@/types/details'
 

@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import { Bug, ShieldAlert } from "lucide-react";
 
 import { type GuideSection } from "@/types/guides";
@@ -75,6 +76,6 @@ export const GUIDE_SECTIONS: GuideSection[] = [
   },
 ];
 
-export function findGuideSectionByRoute(route: string) {
+export function findGuideSectionByRoute(route: Route) {
   return GUIDE_SECTIONS.find((section) => section.route === route);
 }

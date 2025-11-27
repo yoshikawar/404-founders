@@ -10,7 +10,7 @@ import { SelfTests } from '@/components/misc/SelfTests'
 import { useGlobalSearchContext } from '@/hooks/GlobalSearchContext'
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ''
   const isIntroduction = pathname === '/introduction'
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { term, setTerm, filter } = useGlobalSearchContext()

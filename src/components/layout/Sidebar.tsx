@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { type ReactNode } from 'react'
+import { type ComponentProps, type ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -16,7 +16,7 @@ function NavButton({
   onNavigate,
 }: {
   active?: boolean
-  href: string
+  href: ComponentProps<typeof Link>['href']
   icon: ReactNode
   label: string
   onNavigate?: () => void

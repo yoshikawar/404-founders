@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import type { Route } from 'next'
 import { Layers3, ListTree, Network, Server, Shield, Terminal, Zap } from 'lucide-react'
 import { type ComponentType, type ReactNode } from 'react'
 
@@ -27,6 +28,8 @@ function CodeBlock({ children }: { children: ReactNode }) {
     </pre>
   )
 }
+
+const isInternalRoute = (href: string): href is Route => href.startsWith('/') && !href.startsWith('//')
 
 function SectionHeading({ icon: Icon, title }: { icon: ComponentType<{ className?: string }>; title: string }) {
   return (
@@ -246,7 +249,13 @@ export function ErrorDetailLayout({ detail }: { detail: ErrorDetail }) {
           <div className="flex flex-wrap gap-2">
             {detail.related.map((related, index) => (
               <Button key={index} variant="outline" size="sm" asChild>
-                <Link href={related.href}>{related.title}</Link>
+                {isInternalRoute(related.href) ? (
+                  <Link href={related.href}>{related.title}</Link>
+                ) : (
+                  <a href={related.href} target="_blank" rel="noreferrer">
+                    {related.title}
+                  </a>
+                )}
               </Button>
             ))}
           </div>
