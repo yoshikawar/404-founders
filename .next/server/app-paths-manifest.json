@@ -1,0 +1,10 @@
+{
+  "/page": "app/page.js",
+  "/introduction/page": "app/introduction/page.js",
+  "/guides/page": "app/guides/page.js",
+  "/http/page": "app/http/page.js",
+  "/5xx/page": "app/5xx/page.js",
+  "/client/page": "app/client/page.js",
+  "/detail/[category]/[slug]/page": "app/detail/[category]/[slug]/page.js",
+  "/4xx/page": "app/4xx/page.js"
+}

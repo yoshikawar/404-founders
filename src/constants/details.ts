@@ -1,0 +1,1446 @@
+import { type ErrorCategory, type ErrorDetail } from "@/types/details";
+
+export const DETAILS_4XX: ErrorDetail[] = [
+  {
+    category: "client-4xx",
+    id: "400-bad-request",
+    title: "400 Bad Request",
+    status: { code: 400, label: "Bad Request" },
+    summary: "リクエストの構文やパラメータが不正で、サーバが理解できない。",
+    causes: [
+      "JSONの構文エラーや文字コード不正",
+      "必須パラメータの欠落・型不一致",
+      "URLやクエリ文字列の異常な長さ・不正なエンコード",
+      "壊れたCookieやヘッダー値",
+    ],
+    fixes: [
+      "送信前のバリデーション（スキーマ検証）を導入して不正データを弾く",
+      "`Content-Type` とボディ形式（JSON/Formなど）の整合性を取る",
+      "API仕様（必須フィールド・型）と実装を見直す",
+      "サーバ側でどのフィールドが不正か分かるエラーメッセージを返す",
+    ],
+    repro: {
+      curl:
+        "curl -i -X POST \\\n" +
+        "  -H 'Content-Type: application/json' \\\n" +
+        "  --data '{invalid' https://api.example.com/items",
+      steps: [
+        "ブラウザでDevTools → Networkを開き、該当のリクエストを選択",
+        "Request Payload が壊れていないか、Responseのエラー詳細メッセージを確認する",
+      ],
+    },
+    headers: [
+      {
+        name: "Content-Type",
+        value: "application/json",
+        why: "送信ボディのMIMEをサーバの想定と一致させるため",
+      },
+      {
+        name: "Accept",
+        value: "application/json",
+        why: "クライアントが受理可能な応答形式を明示するため",
+      },
+    ],
+    client: [
+      {
+        label: "Fetchの正しい送信例",
+        code:
+          "fetch('/items', {\n" +
+          "  method: 'POST',\n" +
+          "  headers: {\n" +
+          "    'Content-Type': 'application/json',\n" +
+          "    'Accept': 'application/json',\n" +
+          "  },\n" +
+          "  body: JSON.stringify({ name: 'book' }),\n" +
+          "});",
+      },
+    ],
+    server: [
+      {
+        label: "Express: バリデーション例",
+        code:
+          "app.post('/items', (req, res) => {\n" +
+          "  if (typeof req.body.name !== 'string') {\n" +
+          "    return res.status(400).json({ error: 'name is required' });\n" +
+          "  }\n" +
+          "  res.json({ ok: true });\n" +
+          "});",
+      },
+    ],
+    related: [
+      {
+        title: "415 Unsupported Media Type",
+        href: "/detail/client-4xx/415-unsupported-media-type",
+      },
+    ],
+  },
+  {
+    category: "client-4xx",
+    id: "401-unauthorized",
+    title: "401 Unauthorized",
+    status: { code: 401, label: "Unauthorized" },
+    summary: "認証が必要なリソースに、正しい資格情報なしでアクセスした。",
+    causes: [
+      "アクセストークン未送信・期限切れ・スコープ不足",
+      "ログインしていない／セッション切れ",
+      "Authorizationヘッダーの形式ミス（Bearerトークンなど）",
+    ],
+    fixes: [
+      "クライアントで Authorization: Bearer <token> を必ず付与する",
+      "トークンの有効期限・スコープを確認し、必要に応じて再ログイン・再発行する",
+      "プロキシやCORS設定で Authorization ヘッダーが削除されていないか確認する",
+      "401（未認証）と403（権限不足）の使い分けを整理する",
+    ],
+    repro: {
+      curl:
+        "curl -i \\\n" +
+        "  -H 'Authorization: Bearer INVALID' \\\n" +
+        "  https://api.example.com/private",
+      steps: [
+        "有効なトークンと無効なトークンの両方で同じAPIを叩き、挙動の差を確認する",
+        "レスポンスヘッダーに WWW-Authenticate が返っているか確認する",
+      ],
+    },
+    headers: [
+      {
+        name: "Authorization",
+        value: "Bearer <token>",
+        why: "保護リソースへアクセスするためのクレデンシャルを送る",
+      },
+      {
+        name: "WWW-Authenticate",
+        value: "Bearer",
+        why: "サーバが必要な認証方式やスコープをクライアントに伝える（応答時）",
+      },
+    ],
+    client: [
+      {
+        label: "Bearerトークン付与例",
+        code:
+          "fetch('/private', {\n" +
+          "  headers: {\n" +
+          "    Authorization: 'Bearer ' + token,\n" +
+          "  },\n" +
+          "});",
+      },
+    ],
+    server: [
+      {
+        label: "Express: JWT検証スケルトン",
+        code:
+          "app.get('/private', (req, res) => {\n" +
+          "  const h = req.get('Authorization') || '';\n" +
+          "  if (!h.startsWith('Bearer ')) {\n" +
+          "    return res\n" +
+          "      .status(401)\n" +
+          "      .set('WWW-Authenticate', 'Bearer')\n" +
+          "      .end();\n" +
+          "  }\n" +
+          "  const token = h.substring(7);\n" +
+          "  // TODO: verify token\n" +
+          "  res.json({ ok: true });\n" +
+          "});",
+      },
+    ],
+    related: [
+      {
+        title: "403 Forbidden",
+        href: "/detail/client-4xx/403-forbidden",
+      },
+    ],
+  },
+  {
+    category: "client-4xx",
+    id: "403-forbidden",
+    title: "403 Forbidden",
+    status: { code: 403, label: "Forbidden" },
+    summary: "認証済みだが対象操作の権限がない、またはWAF等によりアクセスが拒否された。",
+    causes: [
+      "ロールやACLの設定不備（RBACの誤り）",
+      "WAFやセキュリティルールにヒットしてブロックされている",
+      "IP制限・組織制限による拒否",
+      ".htaccessやサーバ設定によるディレクトリアクセス禁止",
+    ],
+    fixes: [
+      "RBAC/ACLを見直し、最小権限で正しく設定する",
+      "監査ログやWAFログを確認し、なぜ拒否されたか特定する",
+      "必要なユーザーやネットワークに対してIP許可やポリシー更新を行う",
+      "公開ディレクトリと非公開ディレクトリを整理し、意図した場所のみ公開する",
+    ],
+    repro: {
+      curl:
+        "curl -i https://example.com/admin \\\n" +
+        "  -H 'Cookie: session=USER_WITHOUT_ADMIN_ROLE'",
+      steps: [
+        "権限の異なるユーザーで同じエンドポイントへアクセスし、403が返る条件を確認する",
+        "WAFやReverse Proxyのログとアプリのアクセスログを突き合わせる",
+      ],
+    },
+    headers: [
+      {
+        name: "WWW-Authenticate",
+        why: "OAuthスコープ不足などを詳細に伝える場合に使用（必要に応じて）",
+      },
+    ],
+    client: [
+      {
+        label: "権限不足時のメッセージ表示例",
+        code:
+          "if (res.status === 403) {\n" +
+          "  showToast('権限がありません。管理者にお問い合わせください');\n" +
+          "}",
+      },
+    ],
+    server: [
+      {
+        label: "Nginx: IP制限例",
+        code:
+          "location /admin {\n" +
+          "  allow 10.0.0.0/8;\n" +
+          "  deny all;\n" +
+          "}",
+      },
+    ],
+    related: [
+      {
+        title: "401 Unauthorized",
+        href: "/detail/client-4xx/401-unauthorized",
+      },
+    ],
+  },
+  {
+    category: "client-4xx",
+    id: "404-not-found",
+    title: "404 Not Found",
+    status: { code: 404, label: "Not Found" },
+    summary: "要求されたリソースやルートが存在しない、または見つけられない。",
+    causes: [
+      "URLのタイプミス・大文字小文字の違い",
+      "ページの削除・移動（パーマリンク変更）後にリダイレクト未設定",
+      "ビルド成果物や静的ファイルのアップロード漏れ",
+      "SPAで直リンクしたが、サーバ側にフォールバックルートがない",
+    ],
+    fixes: [
+      "ルーティング定義を確認し、URLと大小文字・末尾スラッシュを揃える",
+      "URL変更時は301リダイレクトを設定して古いリンクを救済する",
+      "デプロイ先に必要な静的ファイルがすべて存在するかをチェックする",
+      "SPAの場合は try_files 等でサーバ側フォールバックを設定する",
+      "カスタム404ページを用意し、トップページや検索への導線を設ける",
+    ],
+    repro: {
+      curl: "curl -i https://example.com/non-existent-page",
+      steps: [
+        "意図的に存在しないパスへアクセスして404が返ることを確認する",
+        "デプロイ済みの静的ファイル一覧とルーティング定義を突き合わせる",
+      ],
+    },
+    headers: [
+      {
+        name: "Cache-Control",
+        value: "max-age=60",
+        why: "404ページのキャッシュポリシーを調整し、不要な再取得を抑えるため",
+      },
+    ],
+    client: [
+      {
+        label: "React: 404ページ遷移例",
+        code:
+          "<Routes>\n" +
+          "  <Route path=\"/\" element={<Top />} />\n" +
+          "  <Route path=\"*\" element={<NotFound />} />\n" +
+          "</Routes>",
+      },
+    ],
+    server: [
+      {
+        label: "Nginx: SPAフォールバック",
+        code:
+          "location / {\n" +
+          "  try_files $uri /index.html;\n" +
+          "}",
+      },
+    ],
+    related: [
+      {
+        title: "3xx Redirect Loop",
+        href: "/detail/server/3xx-redirect-loop",
+      },
+    ],
+  },
+  {
+    category: "client-4xx",
+    id: "408-request-timeout",
+    title: "408 Request Timeout",
+    status: { code: 408, label: "Request Timeout" },
+    summary: "クライアントからのリクエスト送信が遅すぎて、サーバ側でタイムアウトになった。",
+    causes: [
+      "モバイル回線など不安定なネットワークでリクエスト送信が途中で途切れる",
+      "大きなファイルアップロードでクライアントの送信が極端に遅い",
+      "ロードバランサーやリバースプロキシのリクエストタイムアウト設定が厳しすぎる",
+    ],
+    fixes: [
+      "クライアント側でアップロード前にファイルサイズをチェックし、分割アップロードなどを検討する",
+      "サーバ側/プロキシ側の request timeout 設定を適切な値に調整する",
+      "タイムアウト時はユーザーに再送や回線確認を促すUIを用意する",
+    ],
+    repro: {
+      curl:
+        "curl -i -X POST \\\n" +
+        "  --data-binary @large-file.bin \\\n" +
+        "  --max-time 2 \\\n" +
+        "  https://api.example.com/upload",
+      steps: [
+        "意図的に非常に大きなファイルを遅い回線からアップロードする",
+        "ロードバランサーやアプリサーバのタイムアウト設定値を小さくして挙動を確認する",
+      ],
+    },
+    headers: [
+      {
+        name: "Keep-Alive",
+        value: "timeout=5",
+        why: "接続のタイムアウトポリシーをクライアントに伝えるため",
+      },
+    ],
+    client: [
+      {
+        label: "アップロード時のタイムアウトハンドリング例",
+        code:
+          "const controller = new AbortController();\n" +
+          "const id = setTimeout(() => controller.abort(), 10000);\n" +
+          "try {\n" +
+          "  const res = await fetch('/upload', { method: 'POST', body: file, signal: controller.signal });\n" +
+          "} catch (e) {\n" +
+          "  showToast('アップロードがタイムアウトしました。回線状況を確認してください。');\n" +
+          "} finally {\n" +
+          "  clearTimeout(id);\n" +
+          "}",
+      },
+    ],
+    server: [
+      {
+        label: "Nginx: リクエストボディタイムアウト設定例",
+        code: "client_body_timeout 10s;",
+      },
+    ],
+    related: [
+      {
+        title: "504 Gateway Timeout",
+        href: "/detail/server/504-gateway-timeout",
+      },
+    ],
+  },
+  {
+    category: "client-4xx",
+    id: "413-payload-too-large",
+    title: "413 Payload Too Large",
+    status: { code: 413, label: "Payload Too Large" },
+    summary: "送信されたリクエストボディがサーバで許可されたサイズ上限を超えている。",
+    causes: [
+      "巨大なファイルを単一リクエストでアップロードしようとしている",
+      "リバースプロキシやアプリサーバの最大ボディサイズ設定が小さすぎる",
+      "フロントエンドでファイルサイズ検証をしていない",
+    ],
+    fixes: [
+      "クライアント側でアップロード前にファイルサイズ制限をチェックし、事前にユーザーへ案内する",
+      "サーバ/プロキシで `max_body_size` などの設定値を要件に合わせて調整する",
+      "必要に応じて分割アップロード（マルチパートアップロード）を設計する",
+    ],
+    repro: {
+      curl:
+        "dd if=/dev/zero of=large.bin bs=1M count=100\n" +
+        "curl -i -X POST \\\n" +
+        "  --data-binary @large.bin \\\n" +
+        "  https://api.example.com/upload",
+      steps: [
+        "意図的に設定上限を超えるサイズのファイルを送信する",
+        "レスポンスステータスが413になり、エラーメッセージが返ることを確認する",
+      ],
+    },
+    headers: [
+      {
+        name: "Content-Length",
+        value: "<request-body-size>",
+        why: "クライアントが送信しているボディサイズが上限超過していないかの判断に利用される",
+      },
+      {
+        name: "Content-Range",
+        value: "bytes 0-1048576/*",
+        why: "分割アップロードなどでどの範囲を送信しているか示すため（任意）",
+      },
+    ],
+    client: [
+      {
+        label: "ファイルサイズバリデーション例",
+        code:
+          "const MAX_SIZE_MB = 5;\n" +
+          "if (file.size > MAX_SIZE_MB * 1024 * 1024) {\n" +
+          "  showToast('ファイルサイズは最大 ' + MAX_SIZE_MB + 'MB までです');\n" +
+          "  return;\n" +
+          "}",
+      },
+    ],
+    server: [
+      {
+        label: "Nginx: client_max_body_size 設定例",
+        code:
+          "server {\n" +
+          "  client_max_body_size 10m;\n" +
+          "}",
+      },
+    ],
+    related: [
+      {
+        title: "429 Too Many Requests",
+        href: "/detail/client-4xx/429-too-many-requests",
+      },
+    ],
+  },
+  {
+    category: "client-4xx",
+    id: "422-unprocessable-content",
+    title: "422 Unprocessable Content",
+    status: { code: 422, label: "Unprocessable Content" },
+    summary: "リクエストボディの形式は正しいが、意味的なバリデーションエラーで処理できない。",
+    causes: [
+      "JSONの構文は正しいが、ドメインルールに合わない値が送られている（例: 日付範囲不正）",
+      "フォーム入力のビジネスルール違反（重複・整合性エラーなど）",
+      "REST APIで部分更新時に不整合な組み合わせのフィールドが送信されている",
+    ],
+    fixes: [
+      "サーバ側でフィールド単位の詳細なバリデーションエラー情報（フィールド名・理由）を返す",
+      "クライアント側でも同じバリデーションルールを実装し、送信前に検証する",
+      "エラー項目ごとにユーザーに分かりやすいメッセージを表示する",
+    ],
+    repro: {
+      curl:
+        "curl -i -X POST \\\n" +
+        "  -H 'Content-Type: application/json' \\\n" +
+        "  --data \"{\\\"startDate\\\":\\\"2024-12-31\\\",\\\"endDate\\\":\\\"2024-01-01\\\"}\" \\\n" +
+        "  https://api.example.com/reservations",
+      steps: [
+        "バリデーションルールに反するデータを送信し、422とバリデーションエラー詳細が返ることを確認する",
+        "エラー内容がクライアントでそのままUIにマッピングできるか確認する",
+      ],
+    },
+    headers: [
+      {
+        name: "Content-Type",
+        value: "application/json",
+        why: "バリデーションエラー応答のフォーマットをJSONに統一するため",
+      },
+    ],
+    client: [
+      {
+        label: "422時のフィールドエラー表示例",
+        code:
+          "if (res.status === 422) {\n" +
+          "  const body = await res.json();\n" +
+          "  showFormErrors(body.errors);\n" +
+          "}",
+      },
+    ],
+    server: [
+      {
+        label: "Express: 422レスポンス例",
+        code:
+          "app.post('/reservations', (req, res) => {\n" +
+          "  const errors = validateReservation(req.body);\n" +
+          "  if (errors.length) {\n" +
+          "    return res.status(422).json({ errors });\n" +
+          "  }\n" +
+          "  // 正常処理\n" +
+          "});",
+      },
+    ],
+    related: [
+      {
+        title: "400 Bad Request",
+        href: "/detail/client-4xx/400-bad-request",
+      },
+    ],
+  },
+  {
+    category: "client-4xx",
+    id: "429-too-many-requests",
+    title: "429 Too Many Requests",
+    status: { code: 429, label: "Too Many Requests" },
+    summary: "短時間に多くのリクエストを送りすぎてレート制限に到達した。",
+    causes: [
+      "APIへの短時間のスパイクアクセス・リトライループ",
+      "クローラやボットによる大量アクセス",
+      "クライアント実装での無限リトライやポーリング間隔の設定ミス",
+    ],
+    fixes: [
+      "`Retry-After` ヘッダーを見て再試行まで待機するようクライアントを実装する",
+      "指数バックオフ＋ジッターをクライアントのリトライ処理に組み込む",
+      "サーバ側では適切なレート制限値とバーストを設計し、必要に応じてキャッシュやキューで平準化する",
+      "ボット・スクレイピングはUser-AgentやIP別の制限ポリシーを設ける",
+    ],
+    repro: {
+      curl:
+        "for i in {1..50}; do curl -s -o /dev/null -w '%{http_code}\\n' https://api.example.com/resource; done",
+      steps: [
+        "短時間に同じエンドポイントへ大量リクエストを送って429が返ることを確認する（検証環境で実施）",
+        "レスポンスヘッダーに Retry-After が含まれているか確認する",
+      ],
+    },
+    headers: [
+      {
+        name: "Retry-After",
+        value: "60",
+        why: "クライアントに再試行可能なタイミングの目安を伝えるため（応答時）",
+      },
+    ],
+    client: [
+      {
+        label: "指数バックオフ付きリトライ例",
+        code:
+          "async function fetchWithBackoff(url: string) {\n" +
+          "  for (let i = 0; i < 5; i++) {\n" +
+          "    const res = await fetch(url);\n" +
+          "    if (res.status !== 429) return res;\n" +
+          "    const retryAfter = Number(res.headers.get('Retry-After') || '0');\n" +
+          "    const wait = (retryAfter || (2 ** i + Math.random()) * 500);\n" +
+          "    await new Promise((r) => setTimeout(r, wait));\n" +
+          "  }\n" +
+          "  throw new Error('Too many retries');\n" +
+          "}",
+      },
+    ],
+    server: [
+      {
+        label: "Nginx: limit_reqによるレート制限例",
+        code:
+          "limit_req_zone $binary_remote_addr zone=api:10m rate=5r/s;\n" +
+          "server {\n" +
+          "  location /api {\n" +
+          "    limit_req zone=api burst=10 nodelay;\n" +
+          "  }\n" +
+          "}",
+      },
+    ],
+    related: [
+      {
+        title: "503 Service Unavailable",
+        href: "/detail/server/503-service-unavailable",
+      },
+    ],
+  },
+];
+
+export const DETAILS_5XX: ErrorDetail[] = [
+  {
+    category: "server",
+    id: "500-internal-server-error",
+    title: "500 Internal Server Error",
+    status: { code: 500, label: "Internal Server Error" },
+    summary: "未処理例外や想定外エラーでサーバが処理を完了できない。",
+    causes: [
+      "アプリケーションコード中のバグ・未捕捉例外（Null参照など）",
+      "DB接続の失敗やタイムアウト",
+      "テンプレートレンダリングやシリアライズ時のエラー",
+      "プラグインやライブラリ更新による非互換",
+    ],
+    fixes: [
+      "グローバルな例外ハンドラを実装し、スタックトレースをログに出す",
+      "最近のコード変更・ライブラリ更新をロールバックして再テストする",
+      "DB接続情報と接続先の生存状態を監視・ヘルスチェックする",
+      "入力値や外部APIレスポンスのバリデーションを強化する",
+    ],
+    repro: {
+      curl: "curl -i https://example.com/trigger-internal-error",
+      steps: [
+        "意図的に例外を発生させるテスト用エンドポイントで500が返ることを確認する",
+        "発生時刻でアプリケーションログとWebサーバーログを突き合わせて原因を特定する",
+      ],
+    },
+    headers: [
+      {
+        name: "Content-Type",
+        value: "application/json",
+        why: "エラーレスポンスのフォーマットを統一し、クライアント側でハンドリングしやすくするため",
+      },
+      {
+        name: "X-Request-Id",
+        why: "サーバ側とクライアント側で同じIDを基にログを突き合わせるため",
+      },
+    ],
+    client: [
+      {
+        label: "500時のユーザ向けハンドリング例",
+        code:
+          "if (res.status === 500) {\n" +
+          "  showErrorPage('サーバ側で問題が発生しました。時間をおいて再度お試しください。');\n" +
+          "}",
+      },
+    ],
+    server: [
+      {
+        label: "Express: エラーハンドラ",
+        code:
+          "app.use((err, req, res, next) => {\n" +
+          "  console.error(err);\n" +
+          "  res.status(500).json({ error: 'internal' });\n" +
+          "});",
+      },
+    ],
+    related: [
+      {
+        title: "502 Bad Gateway",
+        href: "/detail/server/502-bad-gateway",
+      },
+      {
+        title: "504 Gateway Timeout",
+        href: "/detail/server/504-gateway-timeout",
+      },
+    ],
+  },
+  {
+    category: "server",
+    id: "501-not-implemented",
+    title: "501 Not Implemented",
+    status: { code: 501, label: "Not Implemented" },
+    summary: "サーバがリクエストされたメソッドや機能をサポートしていない。",
+    causes: [
+      "エンドポイントは存在するが、特定のHTTPメソッド（PUT/PATCH/DELETEなど）に未対応",
+      "将来的な機能拡張用のプレースホルダAPIでまだ実装されていない",
+      "リバースプロキシやゲートウェイがサポートしていないプロトコル拡張を要求されている",
+    ],
+    fixes: [
+      "API仕様書と実装を見直し、サポートするメソッドだけを公開する",
+      "必要なメソッドを実装するか、クライアントが使うべき代替エンドポイントを案内する",
+      "サポートしていないことを示すエラーメッセージとドキュメントリンクを返す",
+    ],
+    repro: {
+      curl: "curl -i -X PATCH https://api.example.com/items/123",
+      steps: [
+        "サーバがPATCH未対応の状態でPATCHメソッドを送信する",
+        "レスポンスコード501と、対応していない旨のメッセージが返ることを確認する",
+      ],
+    },
+    headers: [
+      {
+        name: "Allow",
+        value: "GET, POST",
+        why: "そのリソースでサポートされているHTTPメソッドをクライアントに知らせるため",
+      },
+    ],
+    client: [
+      {
+        label: "未対応メソッド検知時のハンドリング例",
+        code:
+          "if (res.status === 501) {\n" +
+          "  showToast('この操作は現在サポートされていません。');\n" +
+          "}",
+      },
+    ],
+    server: [
+      {
+        label: "Express: 未実装エンドポイントの例",
+        code:
+          "app.patch('/items/:id', (req, res) => {\n" +
+          "  res.status(501).json({ error: 'not_implemented' });\n" +
+          "});",
+      },
+    ],
+    related: [
+      {
+        title: "500 Internal Server Error",
+        href: "/detail/server/500-internal-server-error",
+      },
+    ],
+  },
+  {
+    category: "server",
+    id: "502-bad-gateway",
+    title: "502 Bad Gateway",
+    status: { code: 502, label: "Bad Gateway" },
+    summary:
+      "リバースプロキシが上流サーバから不正応答やエラーを受け取り、ゲートウェイとして失敗した。",
+    causes: [
+      "上流（アプリサーバ）がダウン・再起動中で応答しない",
+      "proxy_pass先ホスト名・ポートの設定ミス",
+      "上流の応答がHTTPとして壊れている・別プロトコルを話している",
+    ],
+    fixes: [
+      "アプリサーバのプロセス状態とヘルスチェックを確認し、落ちていれば再起動する",
+      "Nginx/Apache等のupstream/proxy_pass設定を見直す",
+      "上流サーバのログを確認し、エラー/クラッシュの原因を特定して修正する",
+      "必要に応じてproxy_read_timeoutを調整しつつ、処理時間自体を短縮する",
+    ],
+    repro: {
+      curl:
+        "curl -i https://example.com/api \\\n" +
+        "  -H 'Host: example.com'",
+      steps: [
+        "502が返ったタイミングのNginxエラーログ（upstream timed out/connection refusedなど）を確認する",
+        "upstream定義のホスト名・ポートに対して直接HTTPリクエストを送り、単体で生きているかを確認する",
+      ],
+    },
+    headers: [
+      {
+        name: "X-Upstream",
+        why: "どのupstreamサーバに転送した結果502になったかをトレースしやすくするため",
+      },
+    ],
+    client: [
+      {
+        label: "502時のリトライ制御例",
+        code:
+          "if (res.status === 502) {\n" +
+          "  // 即時リトライではなく、ユーザー向けメッセージを表示\n" +
+          "  showToast('サーバが一時的に不安定です。時間をおいて再度お試しください。');\n" +
+          "}",
+      },
+    ],
+    server: [
+      {
+        label: "Nginx: upstream定義とproxy_read_timeout",
+        code:
+          "upstream app {\n" +
+          "  server app1:3000;\n" +
+          "  server app2:3000;\n" +
+          "}\n" +
+          "server {\n" +
+          "  location /api {\n" +
+          "    proxy_pass http://app;\n" +
+          "    proxy_read_timeout 30s;\n" +
+          "  }\n" +
+          "}",
+      },
+    ],
+    related: [
+      {
+        title: "504 Gateway Timeout",
+        href: "/detail/server/504-gateway-timeout",
+      },
+    ],
+  },
+  {
+    category: "server",
+    id: "503-service-unavailable",
+    title: "503 Service Unavailable",
+    status: { code: 503, label: "Service Unavailable" },
+    summary: "過負荷やメンテナンスにより一時的にサービスが利用できない。",
+    causes: [
+      "アクセス集中によるCPU/メモリ/コネクション枯渇",
+      "計画メンテナンス・デプロイ中でアプリが停止している",
+      "依存するバックエンド（DB・外部API）がダウンしている",
+    ],
+    fixes: [
+      "メンテナンス時は503とともに復旧予定時刻やステータスページへのリンクを返す",
+      "オートスケールやCDN・ページキャッシュで負荷分散する",
+      "重い処理は非同期化・キューイングで平準化し、同時実行数を制御する",
+      "依存サービス単位のヘルスチェックとフォールバックパスを設計する",
+    ],
+    repro: {
+      curl: "curl -i https://example.com/maintenance",
+      steps: [
+        "意図的にメンテナンスモードをONにし、503とメンテナンスページが返っていることを確認する",
+        "高負荷テストツールで負荷をかけた際、503に切り替わる閾値や挙動を観察する",
+      ],
+    },
+    headers: [
+      {
+        name: "Retry-After",
+        value: "120",
+        why: "再試行までの秒数や日時をクライアントに伝えるため",
+      },
+    ],
+    client: [
+      {
+        label: "503時のメッセージ表示例",
+        code:
+          "if (res.status === 503) {\n" +
+          "  showErrorPage('現在メンテナンス中です。しばらくしてから再度アクセスしてください。');\n" +
+          "}",
+      },
+    ],
+    server: [
+      {
+        label: "Nginx: メンテナンスページ切り替え例",
+        code:
+          "if (-f /var/www/maintenance.flag) {\n" +
+          "  return 503;\n" +
+          "}\n" +
+          "error_page 503 @maintenance;\n" +
+          "location @maintenance {\n" +
+          "  root /var/www/html;\n" +
+          "  rewrite ^ /maintenance.html break;\n" +
+          "}",
+      },
+    ],
+    related: [
+      {
+        title: "429 Too Many Requests",
+        href: "/detail/client-4xx/429-too-many-requests",
+      },
+    ],
+  },
+  {
+    category: "server",
+    id: "504-gateway-timeout",
+    title: "504 Gateway Timeout",
+    status: { code: 504, label: "Gateway Timeout" },
+    summary: "リバースプロキシから見て上流サーバの応答が遅すぎるためタイムアウトした。",
+    causes: [
+      "DBの重いクエリやN+1問題・ロック競合",
+      "外部APIの遅延やハング",
+      "タイムアウト値に対して処理時間が長すぎる設計",
+    ],
+    fixes: [
+      "クエリのインデックス最適化やキャッシュでレスポンスを高速化する",
+      "外部API呼び出しはタイムアウト・リトライ・サーキットブレーカー付きで行う",
+      "Nginx/Apache側の各種proxyタイムアウトを適切に設定する",
+      "重い処理を非同期化し、ユーザーにはジョブIDなどで進捗を返す",
+    ],
+    repro: {
+      curl: "curl -i https://example.com/slow-api",
+      steps: [
+        "意図的に時間のかかる処理を実装したテスト用エンドポイントを呼び、504が発生するしきい値を確認する",
+        "アプリ単体での処理時間と、プロキシで設定しているタイムアウト値を比較する",
+      ],
+    },
+    headers: [
+      {
+        name: "X-Timeout-Ms",
+        why: "サーバ側で想定しているタイムアウトしきい値をクライアントに伝えるため（任意）",
+      },
+    ],
+    client: [
+      {
+        label: "504時の再試行と通知例",
+        code:
+          "if (res.status === 504) {\n" +
+          "  showToast('処理がタイムアウトしました。回線状況を確認のうえ再度お試しください。');\n" +
+          "}",
+      },
+    ],
+    server: [
+      {
+        label: "Nginx: 各種タイムアウト設定例",
+        code:
+          "proxy_connect_timeout 3s;\n" +
+          "proxy_send_timeout 10s;\n" +
+          "proxy_read_timeout 10s;",
+      },
+    ],
+    related: [
+      {
+        title: "502 Bad Gateway",
+        href: "/detail/server/502-bad-gateway",
+      },
+      {
+        title: "500 Internal Server Error",
+        href: "/detail/server/500-internal-server-error",
+      },
+    ],
+  },
+  {
+    category: "server",
+    id: "507-insufficient-storage",
+    title: "507 Insufficient Storage",
+    status: { code: 507, label: "Insufficient Storage" },
+    summary: "サーバ側のストレージ不足のため、リソースを保存できない。",
+    causes: [
+      "ディスクフルによりファイル・ログ・DBレコードが書き込めない",
+      "オブジェクトストレージのクォータ上限に達している",
+      "一時ファイルディレクトリの容量不足でアップロード処理などが失敗している",
+    ],
+    fixes: [
+      "ディスク使用量監視とアラートを導入し、上限前に自動クリーンアップする",
+      "不要なログ・一時ファイル・古いバックアップを削除する",
+      "ストレージクォータを拡張するか、利用設計を見直す（ライフサイクル管理など）",
+    ],
+    repro: {
+      curl:
+        "curl -i -X POST \\\n" +
+        "  --data-binary @file.bin \\\n" +
+        "  https://upload.example.com/files",
+      steps: [
+        "検証環境で意図的にディスク容量を枯渇させた状態でアップロード処理を実行する",
+        "ログにディスクフルエラーが出ているのと、クライアントに507が返っていることを確認する",
+      ],
+    },
+    headers: [
+      {
+        name: "Retry-After",
+        value: "3600",
+        why: "ストレージ問題解消後に再試行してほしい目安時間を伝えるため（任意）",
+      },
+    ],
+    client: [
+      {
+        label: "ストレージ不足時のユーザ向けメッセージ例",
+        code:
+          "if (res.status === 507) {\n" +
+          "  showErrorPage('サーバ容量不足のためファイルを保存できません。時間をおいて再度お試しください。');\n" +
+          "}",
+      },
+    ],
+    server: [
+      {
+        label: "ディスク使用量監視の例（擬似コード）",
+        code:
+          "if (diskUsage > 0.9) {\n" +
+          "  // 90% 超えたら書き込みを制限\n" +
+          "  res.status(507).json({ error: 'insufficient_storage' });\n" +
+          "  return;\n" +
+          "}",
+      },
+    ],
+    related: [
+      {
+        title: "503 Service Unavailable",
+        href: "/detail/server/503-service-unavailable",
+      },
+    ],
+  },
+  {
+    category: "server",
+    id: "3xx-redirect-loop",
+    title: "3xx Redirect Loop",
+    status: { code: 310, label: "Too Many Redirects" },
+    summary: "HTTP 301/302 などのリダイレクトがループしてページが表示できない。",
+    causes: [
+      "wwwあり/なし や http/https のリダイレクト設定が相互に送り合っている",
+      "アプリケーションルーティングとWebサーバーのリダイレクトルールが衝突している",
+      "Cookieやセッション状態に応じたリダイレクト条件が破綻して無限ループしている",
+    ],
+    fixes: [
+      "www↔non-www、http↔https のルールを整理し、一方向のみになるようにする",
+      "CMS側のサイトURL設定とWebサーバーのホスト名設定を揃える",
+      "どの条件でリダイレクトしているかログに出し、ループとなるパターンを特定して修正する",
+      "ブラウザのCookie/キャッシュを削除しても再現するか確認し、サーバ側ロジックを修正する",
+    ],
+    repro: {
+      curl:
+        "curl -I https://example.com \\\n" +
+        "  -L -max-redirs 10",
+      steps: [
+        "curl -I -L などで実際のリダイレクトチェーンを確認し、どこでループしているかを特定する",
+        "ブラウザDevToolsのNetworkタブでLocationヘッダーの遷移を追う",
+      ],
+    },
+    headers: [
+      {
+        name: "Location",
+        why: "リダイレクト先URLを指定するヘッダーであり、誤設定がループの原因になる",
+      },
+    ],
+    client: [
+      {
+        label: "Too Many Redirects検出時のハンドリング例",
+        code:
+          "if (res.redirected && redirectCount > 10) {\n" +
+          "  showErrorPage('リダイレクトがループしている可能性があります。管理者にお問い合わせください。');\n" +
+          "}",
+      },
+    ],
+    server: [
+      {
+        label: "Nginx: www→non-wwwのみへの一方向リダイレクト",
+        code:
+          "server {\n" +
+          "  server_name www.example.com;\n" +
+          "  return 301 https://example.com$request_uri;\n" +
+          "}\n" +
+          "server {\n" +
+          "  server_name example.com;\n" +
+          "  # ここに本番の設定\n" +
+          "}",
+      },
+    ],
+    related: [
+      {
+        title: "404 Not Found",
+        href: "/detail/client-4xx/404-not-found",
+      },
+    ],
+  },
+];
+
+export const DETAILS_CLIENT: ErrorDetail[] = [
+  {
+    category: "client",
+    id: "dns-probe-finished-nxdomain",
+    title: "DNS_PROBE_FINISHED_NXDOMAIN",
+    summary: "ドメイン名がDNSで解決できず、サイトに到達できない。",
+    causes: [
+      "ドメインのA/CNAMEレコードが未設定または誤設定",
+      "ドメインの有効期限切れやネームサーバー設定の問題",
+      "DNS変更直後で、まだ名前解決が全世界に伝播していない",
+      "ローカルPCやルーターのDNSキャッシュが壊れている",
+    ],
+    fixes: [
+      "DNSホスティングでAレコード・CNAMEレコードを正しく設定する",
+      "apexドメインとwwwサブドメイン双方のレコードが存在するか確認する",
+      "ドメインの有効期限とネームサーバー設定を確認する",
+      "クライアント側では `ipconfig /flushdns` などでDNSキャッシュをクリアし、ルーター再起動も試す",
+      "公共DNS（8.8.8.8 など）を使って再度解決を試す",
+    ],
+    repro: {
+      curl:
+        "nslookup example.com\n" +
+        "dig example.com\n",
+      steps: [
+        "nslookup/dig でドメインが正しいIPに解決されるか確認する",
+        "他のネットワーク（モバイル回線など）から同じドメインを引いて差異があるか確認する",
+      ],
+    },
+    headers: [],
+    client: [
+      {
+        label: "ブラウザ側の切り分けメモ",
+        code:
+          "// 1. 別ブラウザ/シークレットモードで確認\n" +
+          "// 2. 別回線（テザリングなど）で同じURLにアクセス\n" +
+          "// 3. それでもNGならサーバ/DNS側の問題の可能性が高い",
+      },
+    ],
+    server: [
+      {
+        label: "BIND: 基本ゾーン定義例",
+        code:
+          "example.com. IN A 203.0.113.10\n" +
+          "www         IN CNAME example.com.",
+      },
+      {
+        label: "Cloud DNS/Cloudflare等でのレコード例",
+        code:
+          "// Aレコード\n" +
+          "example.com -> 203.0.113.10\n" +
+          "// CNAME\n" +
+          "www.example.com -> example.com",
+      },
+    ],
+    related: [
+      {
+        title: "ERR_SSL_PROTOCOL_ERROR",
+        href: "/detail/client/err-ssl-protocol-error",
+      },
+    ],
+  },
+  {
+    category: "client",
+    id: "err-ssl-protocol-error",
+    title: "ERR_SSL_PROTOCOL_ERROR",
+    summary: "HTTPSハンドシェイクに失敗し、SSL/TLSプロトコルエラーとなった。",
+    causes: [
+      "サーバに正しい証明書チェーン（中間証明書を含む）が設定されていない",
+      "証明書のドメイン名がアクセスしているホスト名と一致していない、または有効期限切れ",
+      "古いTLSバージョンや非推奨暗号スイートを使おうとして失敗している",
+      "プロキシやアンチウイルスがSSL通信を中間解読してエラーになっている",
+    ],
+    fixes: [
+      "サーバ側でサーバ証明書＋中間証明書を正しくインストールし、チェーンを修正する",
+      "Let’s Encryptなど信頼されたCAから正しいドメイン名で証明書を再発行する",
+      "TLS1.2/1.3と推奨暗号スイートを有効化し、古いTLS1.0/1.1は無効にする",
+      "クライアント側の端末日時設定を正しくし、ブラウザのキャッシュ・SSL状態をクリアする",
+      "問題切り分けのため、一時的にアンチウイルスやVPNを無効化して接続してみる",
+    ],
+    repro: {
+      curl:
+        "curl -v https://example.com\n" +
+        "# または\n" +
+        "openssl s_client -connect example.com:443 -servername example.com",
+      steps: [
+        "curl -vやopenssl s_clientでハンドシェイクログを確認し、どの段階で失敗しているかを見る",
+        "ブラウザでは別端末/別ブラウザで再現するかを確認し、クライアント固有かサーバ共通かを切り分ける",
+      ],
+    },
+    headers: [],
+    client: [
+      {
+        label: "ブラウザでの基本チェック",
+        code:
+          "// 1. 日付・時刻設定を確認\n" +
+          "// 2. ブラウザキャッシュ/SSL状態をクリア\n" +
+          "// 3. 別ブラウザ・別端末で再度同じURLを開く",
+      },
+    ],
+    server: [
+      {
+        label: "Nginx: 証明書チェーン設定例",
+        code:
+          "server {\n" +
+          "  listen 443 ssl;\n" +
+          "  server_name example.com;\n" +
+          "  ssl_certificate     /etc/ssl/certs/fullchain.pem; # サーバ+中間\n" +
+          "  ssl_certificate_key /etc/ssl/private/privkey.pem;\n" +
+          "  ssl_protocols       TLSv1.2 TLSv1.3;\n" +
+          "}",
+      },
+    ],
+    related: [
+      {
+        title: "NET::ERR_CERT_AUTHORITY_INVALID",
+        href: "/detail/client/net-err-cert-invalid",
+      },
+    ],
+  },
+  {
+    category: "client",
+    id: "net-err-cert-invalid",
+    title: "NET::ERR_CERT_AUTHORITY_INVALID / NET::ERR_CERT_COMMON_NAME_INVALID",
+    summary: "証明書が信頼されていない、またはドメイン名と証明書が一致していない。",
+    causes: [
+      "自己署名証明書を本番環境で利用している",
+      "証明書のCN/SANにアクセスしているホスト名が含まれていない",
+      "証明書の有効期限切れや中間証明書の不備",
+    ],
+    fixes: [
+      "本番環境では信頼された認証局から発行された証明書を使う",
+      "実際にアクセスするFQDNをCN/SANに含めた証明書を再発行する",
+      "ACMEなどで自動更新を設定して期限切れを防ぐ",
+      "社内システムで自己署名を使う場合は、社内CA証明書をクライアントの信頼ストアにインポートする",
+      "ユーザーには警告を無視せず運営者に連絡してもらうよう案内する",
+    ],
+    repro: {
+      curl:
+        "curl -v https://self-signed.badssl.com/\n" +
+        "# ブラウザで自己署名サイトを開いたときと同様の警告を確認",
+      steps: [
+        "証明書ビューア（ブラウザ・openssl）で証明書チェーンとCN/SANを確認する",
+        "同じ証明書を別ドメインに割り当てていないかを確認する",
+      ],
+    },
+    headers: [],
+    client: [
+      {
+        label: "企業内端末での対処",
+        code:
+          "// 1. 社内CAのroot証明書を管理者から入手\n" +
+          "// 2. OS/ブラウザの信頼ストアにインポート\n" +
+          "// 3. ブラウザを再起動してアクセスし直す",
+      },
+    ],
+    server: [
+      {
+        label: "証明書発行時のSANの例",
+        code:
+          "DNS:example.com\n" +
+          "DNS:www.example.com\n" +
+          "DNS:api.example.com",
+      },
+    ],
+    related: [
+      {
+        title: "ERR_SSL_PROTOCOL_ERROR",
+        href: "/detail/client/err-ssl-protocol-error",
+      },
+    ],
+  },
+  {
+    category: "client",
+    id: "cors-no-allow-origin",
+    title: "CORS policy: No 'Access-Control-Allow-Origin' header",
+    summary: "ブラウザのCORS制約により、別オリジンのリソース取得がブロックされた。",
+    causes: [
+      "APIレスポンスに `Access-Control-Allow-Origin` ヘッダーが設定されていない",
+      "設定されたオリジンと実際のオリジンが一致していない",
+      "プリフライト要求（OPTIONS）がサーバ側で正しく処理されていない",
+      "リバースプロキシがCORS関連ヘッダーを削除・上書きしている",
+    ],
+    fixes: [
+      "サーバ側レスポンスに `Access-Control-Allow-Origin` を設定し、許可するオリジンを明示する",
+      "必要に応じて `Access-Control-Allow-Methods` や `Access-Control-Allow-Headers` も設定する",
+      "Node/Expressなどでは `cors` ミドルウェアを導入して一括設定する",
+      "フロント側で不要なカスタムヘッダーを減らし、不要なプリフライトを発生させない",
+      "ローカル開発ではAPIと同一オリジンにプロキシする開発サーバを利用する",
+    ],
+    repro: {
+      curl:
+        "curl -i https://api.example.com/data \\\n" +
+        "  -H 'Origin: https://frontend.example.com'",
+      steps: [
+        "ブラウザのDevToolsコンソールでCORSエラーメッセージを確認する",
+        "Networkタブでレスポンスヘッダーに Access-Control-Allow-Origin が存在するか確認する",
+      ],
+    },
+    headers: [
+      {
+        name: "Access-Control-Allow-Origin",
+        why: "どのオリジンからのブラウザアクセスを許可するかを示すため（応答時）",
+      },
+      {
+        name: "Access-Control-Allow-Methods",
+        why: "許可するHTTPメソッドを宣言し、プリフライト要求に応答するため",
+      },
+      {
+        name: "Access-Control-Allow-Headers",
+        why: "クライアントから送信を許可するカスタムヘッダーを列挙するため",
+      },
+    ],
+    client: [
+      {
+        label: "開発時のプロキシ設定例（Vite）",
+        code:
+          "// vite.config.ts\n" +
+          "server: {\n" +
+          "  proxy: {\n" +
+          "    '/api': {\n" +
+          "      target: 'https://api.example.com',\n" +
+          "      changeOrigin: true,\n" +
+          "    },\n" +
+          "  },\n" +
+          "},",
+      },
+    ],
+    server: [
+      {
+        label: "Express: corsミドルウェア利用例",
+        code:
+          "import cors from 'cors';\n" +
+          "app.use(cors({\n" +
+          "  origin: 'https://frontend.example.com',\n" +
+          "  methods: ['GET', 'POST', 'OPTIONS'],\n" +
+          "}));",
+      },
+    ],
+    related: [
+      {
+        title: "Failed to fetch",
+        href: "/detail/client/failed-to-fetch",
+      },
+    ],
+  },
+  {
+    category: "client",
+    id: "failed-to-fetch",
+    title: "Failed to fetch",
+    summary: "ネットワークエラーなどにより、fetch/XHRがHTTPレベルまで到達せず失敗した。",
+    causes: [
+      "サーバへの接続失敗（DNSエラー、タイムアウト、接続拒否など）",
+      "CORSエラーでブラウザがレスポンスをブロックしている",
+      "オフライン状態やプロキシ設定の問題",
+    ],
+    fixes: [
+      "DevToolsのNetworkタブでリクエストが送信されているか・ステータスコードが出ているか確認する",
+      "CORSエラーの場合はサーバ側の `Access-Control-Allow-*` ヘッダー設定を見直す",
+      "オフライン検知やリトライロジックを実装し、ユーザーに状況を案内する",
+    ],
+    repro: {
+      curl:
+        "# ブラウザでは fetch() が 'TypeError: Failed to fetch' などで失敗\n" +
+        "# curl では別途 DNSエラーや接続拒否として再現できることが多い",
+      steps: [
+        "ブラウザDevToolsでConsoleとNetworkタブを確認し、HTTPステータスが出ているかを見る",
+        "同じURLをcurlで叩いてみて、サーバ自体に到達できるか切り分ける",
+      ],
+    },
+    headers: [],
+    client: [
+      {
+        label: "Failed to fetch のハンドリング例",
+        code:
+          "try {\n" +
+          "  const res = await fetch('/api/data');\n" +
+          "  // 正常時処理\n" +
+          "} catch (e) {\n" +
+          "  showToast('サーバに接続できませんでした。ネットワーク状況を確認してください。');\n" +
+          "}",
+      },
+    ],
+    server: [
+      {
+        label: "サーバ側CORS設定を確認する例",
+        code:
+          "app.use((req, res, next) => {\n" +
+          "  res.setHeader('Access-Control-Allow-Origin', 'https://frontend.example.com');\n" +
+          "  next();\n" +
+          "});",
+      },
+    ],
+    related: [
+      {
+        title: "CORS policy: No 'Access-Control-Allow-Origin' header",
+        href: "/detail/client/cors-no-allow-origin",
+      },
+    ],
+  },
+  {
+    category: "client",
+    id: "err-connection-reset",
+    title: "ERR_CONNECTION_RESET",
+    summary: "サーバとのTCP接続がリセットされ、通信が途中で切断された。",
+    causes: [
+      "サーバプロセスのクラッシュや再起動",
+      "ロードバランサーやFWがセッションを強制的に切断している",
+      "大きなレスポンスや長時間接続で中間装置のタイムアウトに引っかかる",
+    ],
+    fixes: [
+      "サーバログとネットワーク機器のログを突き合わせ、どこでRSTが発生しているか特定する",
+      "長時間かかる処理はWebSocketやジョブキュー＋ポーリングなど別のパターンに分離する",
+      "ロードバランサーのアイドルタイムアウト値とアプリケーション側のkeep-alive設定を調整する",
+    ],
+    repro: {
+      curl: "curl -v https://example.com/large-download",
+      steps: [
+        "大きなレスポンスや長時間接続が必要なエンドポイントに対してリクエストを投げる",
+        "途中で接続がリセットされ、ブラウザで ERR_CONNECTION_RESET が再現するか確認する",
+      ],
+    },
+    headers: [],
+    client: [
+      {
+        label: "再試行とユーザー通知の例",
+        code:
+          "try {\n" +
+          "  const res = await fetch('/api/unstable');\n" +
+          "} catch (e) {\n" +
+          "  showToast('接続が中断されました。時間をおいて再度お試しください。');\n" +
+          "}",
+      },
+    ],
+    server: [
+      {
+        label: "Nginx: keepalive / タイムアウト調整例",
+        code:
+          "keepalive_timeout 75s;\n" +
+          "proxy_read_timeout 60s;",
+      },
+    ],
+    related: [
+      {
+        title: "DNS_PROBE_FINISHED_NXDOMAIN",
+        href: "/detail/client/dns-probe-finished-nxdomain",
+      },
+    ],
+  },
+  {
+    category: "client",
+    id: "mixed-content",
+    title: "Mixed Content",
+    summary: "HTTPSページ内でHTTPコンテンツを読み込もうとし、ブラウザにブロックされた。",
+    causes: [
+      "画像やJS/CSSなどのリソースURLを `http://` 固定で記述している",
+      "外部CDNやスクリプトがHTTPSに対応していないURLを使っている",
+    ],
+    fixes: [
+      "すべてのリソースURLを `https://` かスキームレスURL（`//example.com/...`）に変更する",
+      "外部サービスがHTTPS配信をサポートしているか確認し、非対応であれば代替サービスを検討する",
+      "テンプレートやCMSの設定を更新して、自動生成されるURLがHTTPSになるようにする",
+    ],
+    repro: {
+      curl:
+        "curl -i https://example.com/page-with-mixed-content",
+      steps: [
+        "ブラウザDevToolsのコンソールでMixed Contentの警告を確認する",
+        "Networkタブでhttp://から始まるリソースをフィルタし、どのURLがブロックされているか特定する",
+      ],
+    },
+    headers: [
+      {
+        name: "Content-Security-Policy",
+        value: "upgrade-insecure-requests",
+        why: "HTTPリソースをHTTPSへ自動アップグレードさせるため（対応ブラウザのみ）",
+      },
+    ],
+    client: [
+      {
+        label: "HTML内の相対URL利用例",
+        code:
+          "<img src=\"/assets/logo.png\" alt=\"logo\" />\n" +
+          "<script src=\"/assets/app.js\"></script>",
+      },
+    ],
+    server: [
+      {
+        label: "CSPヘッダー付与例（Nginx）",
+        code:
+          "add_header Content-Security-Policy \"upgrade-insecure-requests\";",
+      },
+    ],
+    related: [
+      {
+        title: "ERR_SSL_PROTOCOL_ERROR",
+        href: "/detail/client/err-ssl-protocol-error",
+      },
+    ],
+  },
+  {
+    category: "client",
+    id: "js-runtime-error",
+    title: "JavaScript Runtime Error (TypeError / ReferenceError など)",
+    summary: "JavaScript実行時エラーにより画面が正しく動作しない。",
+    causes: [
+      "`Uncaught TypeError: xxx is not a function` などの型不整合・呼び出しミス",
+      "`Uncaught ReferenceError: xxx is not defined` のような未定義変数アクセス",
+      "`Unexpected token < in JSON at position 0` のように、JSON想定でHTMLエラーページをパースしている",
+      "ビルドされたバンドルのファイル名が変わったのに、古いHTMLが古いファイルを参照している",
+      "Service Worker が古い静的アセットをキャッシュし続けている",
+    ],
+    fixes: [
+      "DevToolsコンソールとスタックトレースからエラー発生箇所を特定する",
+      "Networkタブでレスポンスボディを確認し、JSONパース前にContent-Typeと中身を検証する",
+      "ビルドパイプラインやHTMLテンプレートを見直し、常に最新のバンドルを参照する",
+      "Service Workerの更新・キャッシュ削除ロジックを実装し、古いキャッシュをクリアする",
+      "型定義やnullチェック（オプショナルチェイニングなど）で防御的にコーディングする",
+    ],
+    repro: {
+      curl: "",
+      steps: [
+        "ブラウザのDevToolsを開き、Consoleタブでエラーメッセージとスタックトレースを確認する",
+        "Networkタブで問題のAPIレスポンスやバンドルファイルを開き、実際の中身を確認する",
+      ],
+    },
+    headers: [],
+    client: [
+      {
+        label: "fetch + JSONパース時の防御的実装例",
+        code:
+          "const res = await fetch('/api/data');\n" +
+          "const contentType = res.headers.get('Content-Type') || '';\n" +
+          "if (!contentType.includes('application/json')) {\n" +
+          "  throw new Error('Unexpected content type: ' + contentType);\n" +
+          "}\n" +
+          "const data = await res.json();",
+      },
+      {
+        label: "オプショナルチェイニングによる安全なアクセス",
+        code:
+          "const userName = response.user?.profile?.name ?? 'ゲスト';",
+      },
+    ],
+    server: [
+      {
+        label: "エラーページではなくJSONエラーを返す例",
+        code:
+          "app.use((err, req, res, next) => {\n" +
+          "  res.status(500).json({ error: 'internal', message: err.message });\n" +
+          "});",
+      },
+    ],
+    related: [
+      {
+        title: "500 Internal Server Error",
+        href: "/detail/server/500-internal-server-error",
+      },
+    ],
+  },
+];
+
+export const DETAILS_BY_CAT: Record<ErrorCategory, ErrorDetail[]> = {
+  "client-4xx": DETAILS_4XX,
+  server: DETAILS_5XX,
+  client: DETAILS_CLIENT,
+};
+
+export function getDetails(category: ErrorCategory) {
+  return DETAILS_BY_CAT[category];
+}
+
+export function findDetailBySlug(category: ErrorCategory, slug: string) {
+  const list = getDetails(category);
+  return list.find((detail) => detail.id === slug);
+}
+
+export function findDetailByTitle(category: ErrorCategory, title: string) {
+  const list = getDetails(category);
+  return list.find((detail) => detail.title === title);
+}
+
+export function find4xx(slug: string) {
+  return findDetailBySlug("client-4xx", slug);
+}
